@@ -1,6 +1,6 @@
 # Caregiver Handoff — MVP Product Requirements Document
 
-**Version:** 1.1 · **Context:** Hub71 × Devin AI health-tech hackathon · **Status:** Build-ready proposal (revised: policy/evidence framing, positioning, scope tiers, Devin slicing plan, demo engineering rules, extraction eval)
+**Version:** 1.2 · **Context:** Hub71 × Devin AI health-tech hackathon · **Status:** Build-ready proposal (revised: policy/evidence framing, positioning, scope tiers, Devin slicing plan, demo engineering rules, extraction eval; added R13 exercise video generation as P2 stretch with §7.1 safety rules)
 
 **One-line pitch:** The verification layer between a hospital's discharge document and what the family actually does — every task traced to its source sentence, every handoff owned and logged.
 
@@ -48,6 +48,8 @@ A patient leaves hospital with instructions distributed across a discharge note:
 
 **MVP excludes:** Scanned-image OCR, voice, WhatsApp/SMS sending, electronic health record integration, appointments booked automatically, medication dosing or interaction advice, automatic emergency triage, clinical outcome claims, and real patient records in the hackathon demo.
 
+**Stretch (P2, only if hard core is green):** R13 — AI-generated exercise demonstration video for physiotherapy tasks, subject to the strict rules in §7.1. This is the first feature that touches clinical content beyond the source document; if there is any doubt at build time, cut it. When cut, it is not mentioned in the pitch.
+
 ## 4. Core journey
 
 1. **Start an episode:** Reviewer creates a fictional patient's discharge episode and records a discharge date. Patient or authorized representative explicitly approves sharing an action plan with named caregivers. For the demo, use pre-seeded accounts to represent this step.
@@ -83,11 +85,13 @@ Mariam invites her daughter and son. Her daughter accepts the clinic booking tas
 | R10 | P0 | Provide a demo dataset and “advance demo clock” control available only in demo mode | Judge can show assignment → completion → overdue escalation without waiting for real time |
 | R11 | P1 | Export a printable approved care checklist | Export contains owners, deadlines, source references, and a generated timestamp |
 | R12 | P1 | Attach a reviewed translation of instructions | A caregiver can compare translation with original; untranslated/unchecked text is labeled and hidden from publication |
+| R13 | P2 | Generate an AI exercise demonstration video for a reviewer-approved physiotherapy task, visible to the patient and caregivers | A video can only be requested for a task whose `kind` is `exercise` and whose text is reviewer-approved; the published video carries an "AI-generated — reviewed by care team" label; a failed or timed-out generation falls back to a labeled fixture clip without blocking the demo; no patient identifiers appear in the generation prompt |
 
 **Scope tiers for the build window (protect the demo):**
 
 - **Hard core (ship no matter what):** R1–R5, R7, R8, R10, and the server-side membership enforcement inside R6. These are the source-linked review + ownership + escalation story. If time runs out, everything else yields to these.
 - **Deferrable (cut first):** R6 invite/revoke UX polish, R9 Arabic/RTL labels (unless the Arabic demo beat is committed to early), R11, R12.
+- **Stretch (P2):** R13 exercise video generation — only after hard core and P1 are green, and only if every rule in §7.1 can be implemented. Cut without ceremony; never mention it in the pitch if cut.
 
 ### Task states
 
@@ -130,11 +134,27 @@ Use AI to **draft structured data**, not to publish instructions or decide care.
 }
 ```
 
-`kind` is `action` or `warning_sign`. No generated item may contain a medication dose or a contact instruction that is not present in the source. Dates inferred from relative wording are **proposals** until the reviewer confirms them. If extraction fails, preserve the upload, display an error, and let the reviewer add items manually. If the LLM is unavailable during the demo, load a clearly labeled pre-extracted fixture rather than inventing live results.
+`kind` is `action`, `warning_sign`, or (only if R13 ships) `exercise` — an action subtype that additionally qualifies for video generation under §7.1. No generated item may contain a medication dose or a contact instruction that is not present in the source. Dates inferred from relative wording are **proposals** until the reviewer confirms them. If extraction fails, preserve the upload, display an error, and let the reviewer add items manually. If the LLM is unavailable during the demo, load a clearly labeled pre-extracted fixture rather than inventing live results.
 
 **Validation before review:** Check that `source_quote` occurs verbatim in the extracted page text; verify page number and JSON shape; reject empty source references. A reviewer can add a manual item only by attaching a quote or labeling it as reviewer-authored. Store source and edited version separately. **Surface rejections visibly:** a draft blocked by validation must appear in the reviewer UI as "rejected — source quote not found in document" (with the offending quote) rather than being silently dropped, so the reviewer and demo audience can see the safety mechanism fire.
 
 **Warning signs:** Display only reviewer-approved text and its original contact instruction. Do not use model confidence to tell a patient that a symptom is safe, urgent, or nonurgent. If the source provides no contact route, flag it for reviewer completion instead of creating one.
+
+### 7.1 Exercise video generation (R13 — stretch feature)
+
+The same chain-of-custody principle governs video: **the AI proposes, the reviewer approves, the patient sees nothing unreviewed.**
+
+**Hard rules (non-negotiable):**
+
+1. **Eligibility gate:** Video generation is only available for a plan item with `kind = "exercise"` whose text has passed reviewer approval. It can never be requested for actions, warning signs, medications, or any item outside the source-linked workflow. *(Architecturally enforced — the button does not exist for other kinds.)*
+2. **Prompt is built only from approved data:** reviewer-approved exercise text + source quote + discharge date context. **Never** patient name, contact details, record identifiers, or free-form user input. Log every prompt.
+3. **Reviewer approves the video before the patient sees it.** The generated clip enters `pending_review` exactly like a draft text item; publication follows the same gate. The patient-facing card always carries the label **"AI-generated demonstration — reviewed by care team."**
+4. **Content boundary:** The prompt may only illustrate the approved instruction (e.g., "knee bending exercise shown in the discharge sheet"). It may not add exercises, repetitions, durations, resistance, or progression advice not present in the approved text. Generated content that implies dosing or progression is rejected at review.
+5. **Failure = fixture, never a spinner on stage:** If generation times out or errors, fall back to a labeled fixture clip (`"Demo fixture — generation unavailable"`). No blocking wait in front of judges; pre-generate the demo clip before going on stage and show live generation as the optional flourish, not the load-bearing step.
+6. **Not medical advice, by design:** No anatomical claims, no pain/safety assurances, no "do this if it hurts" language in any generated caption or audio. The video is a visual rendering of an instruction the care team already approved.
+7. **Demo data only:** Synthetic patients; no real rehab protocols for real conditions — the fixture scenario is a generic post-discharge mobility exercise.
+
+**If any of these cannot be implemented in the build window, cut R13.** It is scored as a stretch, and a half-built version (rule 3 or 5 missing) is worse than none.
 
 ## 8. Data and permissions
 
@@ -146,6 +166,7 @@ Use AI to **draft structured data**, not to publish instructions or decide care.
 | Episode | `id`, `patient_name`, `discharged_at`, `time_zone`, `consent_status`, `status`, `reviewer_id` |
 | Document | `id`, `episode_id`, `storage_key`, `extracted_text`, `uploaded_at` |
 | PlanItem | `id`, `episode_id`, `kind`, `title`, `approved_text`, `source_quote`, `source_page`, `review_status`, `due_at`, `status`, `owner_id`, `backup_id` |
+| ExerciseClip (R13) | `id`, `item_id`, `kind = exercise` prerequisite, `generation_prompt` (approved data only), `video_key`, `review_status` (`pending_review` → approved/rejected), `source = generated \| fixture`, `created_at` |
 | CareCircleGrant | `episode_id`, `user_id`, `role`, `invited_at`, `accepted_at`, `revoked_at` |
 | ActivityEvent | `id`, `episode_id`, `item_id`, `actor_id`, `event_type`, `note`, `created_at` |
 | Notification | `id`, `recipient_id`, `item_id`, `trigger`, `created_at`, `read_at`, `dedupe_key` |
@@ -156,7 +177,7 @@ Use AI to **draft structured data**, not to publish instructions or decide care.
 
 ## 9. Implementation proposal
 
-**Suggested stack:** Next.js + TypeScript for responsive UI and server-side routes; SQLite with Prisma for the hackathon; server-side PDF text extraction; a server-side LLM adapter with schema validation for draft items. Keep the AI key on the server. A deterministic fixture should support the entire judge demo without an external service.
+**Suggested stack:** Next.js + TypeScript for responsive UI and server-side routes; SQLite with Prisma for the hackathon; server-side PDF text extraction; a server-side LLM adapter with schema validation for draft items. Keep the AI key on the server. A deterministic fixture should support the entire judge demo without an external service. If R13 ships: a server-side video-generation adapter behind the same discipline — provider key server-side, prompt built only from approved fields (§7.1 rule 2), timeout → fixture clip, and the demo clip pre-generated before the pitch.
 
 **Main API actions:** `POST /episodes`, `POST /episodes/:id/document`, `POST /episodes/:id/extract`, `PATCH /episodes/:id/items/:itemId`, `POST /episodes/:id/publish`, `POST /episodes/:id/grants`, `DELETE /episodes/:id/grants/:userId`, `POST /items/:id/accept`, `POST /items/:id/complete`, `POST /items/:id/needs-help`, `GET /episodes/:id/activity`, and `GET /notifications`. Treat these as proposed interfaces; enforce authorization and validate inputs on every handler.
 
@@ -184,6 +205,7 @@ Devin's own best practices call for projects that break into **isolated, objecti
 | S6 | R6 (server-side enforcement) | Authorization tests incl. guessed-URL access |
 | S7 | R10, demo script | Demo clock idempotency test |
 | S8 | R9, R11, R12 (if time) | RTL/label diff test; export content check |
+| S9 | R13 (stretch — only after S1–S7 green) | Eligibility gate test (no generate button for non-exercise kinds); prompt-contains-no-PII assertion; fixture fallback on simulated timeout; label present on player; reviewer approval required before patient visibility |
 
 Rules for the build: one slice per Devin session, backward-compatible changes only, each slice independently mergeable after human review, CI green required before merge. Record session screenshots and the CI pipeline for the pitch — judges cannot award points for structure they cannot see.
 
@@ -196,6 +218,7 @@ Rules for the build: one slice per Devin session, backward-compatible changes on
 - Advance demo clock twice; verify a single backup notice and no duplicate events.
 - Switch Arabic/English; verify layout and original source wording.
 - Disconnect AI service; verify manual review/fixture fallback without a fabricated extraction.
+- If R13 shipped: attempt video generation on a non-exercise item (must be impossible); simulate generation timeout (fixture clip plays, labeled); confirm patient view is blocked until reviewer approves the clip; confirm the generation prompt log contains no patient identifiers.
 
 ## 10. Demo script (approximately 3 minutes)
 
@@ -212,6 +235,7 @@ Rules for the build: one slice per Devin session, backward-compatible changes on
 4. **Care circle (40 seconds):** Daughter accepts the appointment task, records the booked date. Son sees the pharmacy task unclaimed. *(One-click role switch or split-screen — no logins.)*
 5. **Closed loop (35 seconds):** Advance demo clock. Show the backup notified about the overdue pharmacy action; backup claims it. Show the audit trail.
 6. **Arabic/RTL beat (10 seconds, ONLY if R9 shipped):** Flip the interface to Arabic, show RTL layout with the original English source wording preserved. **If R9 was cut, do not mention Arabic in the pitch.**
+6b. **Exercise video beat (15 seconds, ONLY if R13 shipped):** Open the physiotherapy task → reviewer view shows the generated clip pending approval → approve → patient view plays it with the "AI-generated demonstration — reviewed by care team" label. **Pre-generate this clip before going on stage; show it as recorded playback. Mention live generation only if you are confident in the provider that day. If R13 was cut, do not mention video in the pitch.**
 7. **Close (20 seconds):** "Verified source-linked review, owned handoffs, escalation when something stalls — clinical instructions stay human approved. And this maps directly to Abu Dhabi's Patient Experience Standard, effective April 2026, which requires families to receive written home-care guidance."
 
 **Failure drills:** Bring a short backup video of the same run plus seeded state for every scripted step in case PDF parsing or the AI provider is unavailable. Never use a real patient's document on stage.

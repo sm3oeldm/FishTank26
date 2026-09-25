@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: #faf7f2;
+  color: #0f172a;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* plain card (kept the old class name so markup stays simple) */
+.glass { background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+.serif { font-family: var(--font-serif); }
+.scroll-thin::-webkit-scrollbar { width: 6px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+
+@keyframes flow-dash { to { stroke-dashoffset: -24; } }
+.flow-line { stroke-dasharray: 3 5; animation: flow-dash 1.6s linear infinite; }
+
+@keyframes ring-pulse { 0% { transform: scale(1); opacity: .6 } 100% { transform: scale(1.6); opacity: 0 } }
+.ring-pulse { transform-box: fill-box; transform-origin: center; animation: ring-pulse 1.8s ease-out infinite; }
+
+@keyframes buzz {
+  0%, 100% { transform: translateX(0) }
+  20%, 60% { transform: translateX(-2px) }
+  40%, 80% { transform: translateX(2px) }
+}
+.buzz { animation: buzz 0.4s ease-in-out 3; }
+
+@keyframes scan { 0% { top: -5% } 100% { top: 100% } }
+.scanline { animation: scan 1.8s linear infinite; }

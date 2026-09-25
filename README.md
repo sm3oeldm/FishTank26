@@ -10,8 +10,9 @@ Built for the Hub71 x Devin AI health-tech hackathon. Product requirements live 
 ## Stack
 
 Next.js 15 (App Router, React 19, TypeScript) · Prisma + SQLite · Tailwind CSS · Vitest.
-Optional LLM extraction via OpenAI; without a key the app uses a deterministic fixture extractor so the
-whole demo runs offline.
+Optional LLM extraction via Google Gemini (`GEMINI_API_KEY`) or OpenAI (`OPENAI_API_KEY`); without a key the
+app uses a deterministic fixture extractor so the whole demo runs offline. Every LLM candidate still passes
+the verbatim-quote validator before a reviewer sees it.
 
 ## Run it
 
@@ -44,7 +45,7 @@ the task state machine + audit log, and idempotent reminder → overdue → back
 
 ```
 prisma/schema.prisma          data model (Episode, Document, PlanItem, CareCircleGrant, ActivityEvent, Notification, DemoClock)
-src/lib/extraction/           ingest (text / PDF via unpdf), OpenAI + fixture extractors, verbatim validator
+src/lib/extraction/           ingest (text / PDF via unpdf), Gemini / OpenAI / fixture extractors, verbatim validator
 src/lib/services/             episodes, review/publish, circle, tasks (state machine), notifications, plan (role-scoped read model)
 src/lib/access.ts             server-side care-circle enforcement (non-members get 404)
 src/app/api/                  JSON API used by the UI and scripts/smoke.sh

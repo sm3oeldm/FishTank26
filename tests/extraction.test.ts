@@ -7,6 +7,7 @@ import { ingestPastedText, ingestPdf, extractDrafts, validateDrafts } from "@/li
 import { FIXTURE_PAGES, FIXTURE_TEXT } from "@/lib/demo/fixture";
 import { normalizeWhitespace } from "@/lib/extraction/validator";
 import type { DraftItem } from "@/lib/extraction";
+import { extractionResponseSchema } from "@/lib/extraction/schema";
 
 const fixturePdf = () =>
   new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures/mariam-discharge-summary.pdf")));
@@ -97,5 +98,35 @@ describe("extraction (AI disabled -> deterministic fixture extractor)", () => {
     expect(badDose.ok).toBe(false);
     if (!badDose.ok) expect(badDose.reason).toMatch(/dose/i);
     expect(ok.ok).toBe(true);
+  });
+});
+
+describe("LLM response schema", () => {
+  const base = {
+    kind: "action",
+    title: "Blood test",
+    plain_language_text: "Go for the blood test.",
+    source_quote: "Return to the hospital laboratory on the morning of 27 September 2026.",
+    source_page: 2,
+  };
+
+  it("normalises loosely formatted due dates and defaults optional fields", () => {
+    const parsed = extractionResponseSchema.parse({
+      items: [
+        { ...base, due_at: "2026-09-27" },
+        { ...base, due_at: "2026-09-27T08:00+04:00" },
+        { ...base, due_at: "sometime next week" },
+        { ...base, due_at: null, ambiguity_reason: "Time not stated" },
+      ],
+    });
+    expect(parsed.items.map((i) => i.due_at)).toEqual([
+      "2026-09-27T00:00:00.000Z",
+      "2026-09-27T04:00:00.000Z",
+      null,
+      null,
+    ]);
+    expect(parsed.items[0].ambiguity_reason).toBeNull();
+    expect(parsed.items.every((i) => i.review_status === "pending")).toBe(true);
+    expect(parsed.items[3].ambiguity_reason).toBe("Time not stated");
   });
 });

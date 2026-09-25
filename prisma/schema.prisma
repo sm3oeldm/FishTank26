@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String @id @default(cuid())
+  displayName String
+  role        String // reviewer | patient | caregiver
+  locale      String @default("en")
+
+  reviewedEpisodes Episode[]         @relation("EpisodeReviewer")
+  grants           CareCircleGrant[]
+  ownedItems       PlanItem[]        @relation("ItemOwner")
+  backupItems      PlanItem[]        @relation("ItemBackup")
+  activity         ActivityEvent[]
+  notifications    Notification[]
+}
+
+model Episode {
+  id            String   @id @default(cuid())
+  patientName   String
+  dischargedAt  DateTime
+  timeZone      String   @default("Asia/Dubai")
+  consentStatus String   @default("pending") // pending | granted | withdrawn
+  status        String   @default("draft") // draft | published
+  reviewerId    String
+  createdAt     DateTime @default(now())
+
+  reviewer      User              @relation("EpisodeReviewer", fields: [reviewerId], references: [id])
+  documents     Document[]
+  items         PlanItem[]
+  grants        CareCircleGrant[]
+  activity      ActivityEvent[]
+  notifications Notification[]
+}
+
+model Document {
+  id            String   @id @default(cuid())
+  episodeId     String
+  fileName      String
+  storageKey    String?
+  extractedText String
+  pageCount     Int      @default(1)
+  uploadedAt    DateTime @default(now())
+
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+}
+
+model PlanItem {
+  id              String    @id @default(cuid())
+  episodeId       String
+  kind            String // action | warning_sign
+  title           String
+  draftText       String
+  approvedText    String?
+  sourceQuote     String
+  sourcePage      Int?
+  sourceType      String    @default("extracted") // extracted | reviewer_authored | fixture
+  reviewStatus    String    @default("pending") // pending | approved | rejected | removed
+  rejectionReason String?
+  ambiguityReason String?
+  dueAt           DateTime?
+  status          String    @default("unclaimed") // unclaimed | awaiting_acceptance | active | needs_help | done
+  ownerId         String?
+  backupId        String?
+  outcomeDate     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  episode       Episode         @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  owner         User?           @relation("ItemOwner", fields: [ownerId], references: [id])
+  backup        User?           @relation("ItemBackup", fields: [backupId], references: [id])
+  activity      ActivityEvent[]
+  notifications Notification[]
+}
+
+model CareCircleGrant {
+  id         String    @id @default(cuid())
+  episodeId  String
+  userId     String
+  role       String // patient | caregiver | backup
+  invitedAt  DateTime  @default(now())
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([episodeId, userId])
+}
+
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  episodeId String
+  itemId    String?
+  actorId   String
+  eventType String
+  note      String?
+  createdAt DateTime
+
+  episode Episode   @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  item    PlanItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actor   User      @relation(fields: [actorId], references: [id])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  episodeId   String
+  recipientId String
+  itemId      String
+  trigger     String // due_soon | overdue | backup_overdue | needs_help
+  dedupeKey   String    @unique
+  createdAt   DateTime
+  readAt      DateTime?
+
+  episode   Episode  @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  recipient User     @relation(fields: [recipientId], references: [id])
+  item      PlanItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model DemoClock {
+  id            Int @id @default(1)
+  offsetMinutes Int @default(0)
+}
